@@ -1,6 +1,8 @@
 # Standard library
+import json
 import logging
 import os
+import pathlib
 import time
 
 # Third party
@@ -13,24 +15,32 @@ from .processor import Processor
 from .utils import human_readable, InputBlobTriggerException
 
 
-def main(inputBlob: func.InputStream):
+def main(event: func.EventGridEvent):
+    result = json.dumps({
+        'id': event.id,
+        'data': event.get_json(),
+        'topic': event.topic,
+        'subject': event.subject,
+        'event_type': event.event_type,
+    })
+    logging.info("Got event: {}".format(result))
+
     time_start = time.monotonic()
-    log_prefix = f"[{os.path.splitext(os.path.basename(inputBlob.name))[0]}]"
-    logging.info(
-        f"{log_prefix} Processing Azure blob: {inputBlob.name} ({inputBlob.length} bytes)"
-    )
-    processor = Processor(log_prefix, 100000)
+    data_filename = os.path.basename(event.subject)
+    local_data_path = pathlib.Path(os.sep, "data", data_filename)
+
+    processor = Processor(data_filename, 100000)
     try:
-        processor.load(inputBlob)
+        processor.load(local_data_path)
         processor.update_geometries()
         processor.update_forecasts()
         processor.update_latest_forecast()
         processor.update_forecast_meta()
     except InputBlobTriggerException as exc:
-        logging.error(f"{log_prefix} Failed with message:\n{exc}")
-    logging.info(f"{log_prefix} Finished processing Azure blob: {inputBlob.name}")
+        logging.error(f"{data_filename} Failed with message:\n{exc}")
+    logging.info(f"{data_filename} Finished processing Azure blob: {local_data_path}")
     logging.info(
-        f"{log_prefix} Total time: {human_readable(time.monotonic() - time_start)}"
+        f"{data_filename} Total time: {human_readable(time.monotonic() - time_start)}"
     )
 
     if "EVENTGRID_DOMAIN_KEY" in os.environ:
@@ -49,9 +59,9 @@ def main(inputBlob: func.InputStream):
                     topic=domain_topic,
                     event_type="icenet.forecast.processed",
                     data={
-                        "filename": f"{inputBlob.name}"
+                        "filename": f"{local_data_path}"
                     },
-                    subject=f"{os.path.splitext(os.path.basename(inputBlob.name))[0]} has been processed into DB",
+                    subject=f"{data_filename} has been processed into DB",
                     data_version="2.0"
                 )
             ])

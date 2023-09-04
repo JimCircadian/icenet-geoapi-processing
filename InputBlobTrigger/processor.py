@@ -114,11 +114,11 @@ class Processor:
                     self.cnxn_ = None
                     time.sleep(retry_seconds)
 
-    def load(self, inputBlob: func.InputStream) -> None:
+    def load(self, input_blob: os.PathLike) -> None:
         """Load data from a file into an xarray."""
-        logging.info(f"{self.log_prefix} Attempting to load {inputBlob.name}...")
+        logging.info(f"{self.log_prefix} Attempting to load {input_blob}...")
         try:
-            xr = xarray.open_dataset(io.BytesIO(inputBlob.read()))
+            xr = xarray.open_dataset(input_blob)
             logging.info(
                 f"{self.log_prefix} Loaded NetCDF data into array with dimensions: {xr.dims}."
             )
@@ -185,7 +185,7 @@ class Processor:
 
         except ValueError as exc:
             logging.error(
-                f"{self.log_prefix} Could not load NetCDF data from {inputBlob.name}!"
+                f"{self.log_prefix} Could not load NetCDF data from {input_blob}!"
             )
             raise InputBlobTriggerException(exc)
 
